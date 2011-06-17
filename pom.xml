@@ -16,6 +16,11 @@
             <artifactId>bukkit</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>me.passivepicasso.util</groupId>
+            <artifactId>me.passivepicasso.util</artifactId>
+            <version>0.1.0</version>
+        </dependency>
     </dependencies>
     <build>
         <defaultGoal>install</defaultGoal>
