@@ -5,6 +5,7 @@ import org.bukkit.Chunk;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.generator.BlockPopulator;
 
 import java.util.EnumSet;
@@ -65,12 +66,94 @@ public class RoomPopulator extends BlockPopulator {
             for (Block block : room) {
                 new BlockMatrixNode(block, matrix);
             }
-            BlockMatrixNode rootnode = matrix.values().iterator().next();
 
-            randomCooridoor(rootnode, random, random.nextInt(4), true);
+            Block roomCenter = world.getBlockAt(center_x, y_base+1, center_z);
+            Block northWall = roomCenter.getFace(BlockFace.NORTH);
+            while(northWall.getType().equals(Material.AIR)){
+                northWall = northWall.getFace(BlockFace.NORTH);
+            }
+            Block eastWall = roomCenter.getFace(BlockFace.EAST);
+            while(eastWall.getType().equals(Material.AIR)){
+                eastWall = eastWall.getFace(BlockFace.EAST);
+            }
+            Block southWall = roomCenter.getFace(BlockFace.SOUTH);
+            while(southWall.getType().equals(Material.AIR)){
+                southWall = southWall.getFace(BlockFace.SOUTH);
+            }
+            Block westWall = roomCenter.getFace(BlockFace.WEST);
+            while(westWall.getType().equals(Material.AIR)){
+                westWall = westWall.getFace(BlockFace.WEST);
+            }
+            huntingCooridor(northWall, random);
+            huntingCooridor(eastWall, random);
+            huntingCooridor(southWall, random);
+            huntingCooridor(westWall, random);
         }
     }
 
+    //the passed block should be at the desired floor level, the path of blocks above this will be hollowed out as well
+    private void huntingCooridor(Block block, Random random) {
+        if (random.nextInt(100) < COORIDORE_CHANCE) {
+            for (BlockFace face : EnumSet.of(BlockFace.NORTH, BlockFace.EAST, BlockFace.WEST, BlockFace.SOUTH)) {
+                if (block.getFace(face).getType().equals(Material.STONE)) {
+                    Block topBlock = block.getFace(BlockFace.UP);
+                    while (true) {
+                        block.getFace(face).setType(Material.AIR);
+                        topBlock.getFace(face).setType(Material.AIR);
+                        switch (face) {
+                            case NORTH:
+                            case SOUTH:
+                                if (scanDirection(BlockFace.EAST, block.getFace(BlockFace.EAST), Material.AIR, 20)) {
+                                    while(!block.getFace(BlockFace.EAST).getType().equals(Material.AIR)){
+                                        block = block.getFace(BlockFace.EAST);
+                                        block.setType(Material.AIR);
+                                    }
+                                    return;
+                                }
+                                if (scanDirection(BlockFace.WEST, block.getFace(BlockFace.WEST), Material.AIR, 20)) {
+                                    while(!block.getFace(BlockFace.WEST).getType().equals(Material.AIR)){
+                                        block = block.getFace(BlockFace.WEST);
+                                        block.setType(Material.AIR);
+                                    }
+                                    return;
+                                }
+                                break;
+                            case EAST:
+                            case WEST:
+                                if (scanDirection(BlockFace.NORTH, block.getFace(BlockFace.NORTH), Material.AIR, 20)) {
+                                    while(!block.getFace(BlockFace.NORTH).getType().equals(Material.AIR)){
+                                        block = block.getFace(BlockFace.NORTH);
+                                        block.setType(Material.AIR);
+                                    }
+                                    return;
+                                }
+                                if (scanDirection(BlockFace.SOUTH, block.getFace(BlockFace.SOUTH), Material.AIR, 20)) {
+                                    while(!block.getFace(BlockFace.SOUTH).getType().equals(Material.AIR)){
+                                        block = block.getFace(BlockFace.SOUTH);
+                                        block.setType(Material.AIR);
+                                    }
+                                    return;
+                                }
+                                break;
+                        }
+                        block = block.getFace(face);
+                        topBlock = topBlock.getFace(face);
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean scanDirection(BlockFace face, Block block, Material targetType, int maxDistance) {
+        while (!block.getFace(face).getType().equals(targetType)) {
+            block = block.getFace(face);
+            maxDistance--;
+            if (maxDistance <= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * Always pass true for firstIteration except from within firstIteration.
