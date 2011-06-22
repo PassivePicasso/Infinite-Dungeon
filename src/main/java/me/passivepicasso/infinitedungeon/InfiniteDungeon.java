@@ -16,7 +16,6 @@ import java.util.Random;
 public class InfiniteDungeon extends JavaPlugin {
 
     private static byte[] chunkGenArray = new byte[32768];
-    private static byte[] emptyChunk = new byte[32768];
     private InfinitePlayerListener playerListener;
     private World infiniteDungeon = null;
 

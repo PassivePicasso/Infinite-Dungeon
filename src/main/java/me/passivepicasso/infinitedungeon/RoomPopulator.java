@@ -6,7 +6,6 @@ import org.bukkit.Chunk;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.generator.BlockPopulator;
 
 import java.util.*;
@@ -19,396 +18,317 @@ public class RoomPopulator extends BlockPopulator {
     private static final int DOUBLE_HEIGHT_CHANCE = 10;
 
     private static HashMap<Box, BlockMatrixNode> Rooms = new HashMap<Box, BlockMatrixNode>();
+    private static HashMap<Chunk, Box> existingRooms = new HashMap<Chunk, Box>();
 
     @Override
     public void populate(World world, Random random, Chunk source) {
-        if (random.nextInt(100) < ROOM_CHANCE) {
-            int center_x = 0;
-            if (source.getX() >= 0) {
-                center_x = 7 + (source.getX() * 16) + (4 - random.nextInt(8));
-            } else {
-                center_x = (source.getX() * 16) - 7 + (4 - random.nextInt(8));
+        int x, z, halfWidth = random.nextInt(8) + 3, halfLength = random.nextInt(8) + 3;
+
+        if (Rooms.isEmpty()) {
+            x = (source.getX() * 16);
+            z = (source.getZ() * 16);
+            int level = 1, y_base = 127 - ((4 * level) + 1), y_boost = 0;
+
+            Box startRoom = new Box(x, 4, z, y_base, halfLength * 2, halfWidth * 2);
+
+            BlockMatrixNode roomMatrix = new BlockMatrixNode(world.getBlockAt(x, y_base, z), new HashMap<Block, BlockMatrixNode>());
+            RoomPopulator.Rooms.put(startRoom, roomMatrix);
+            for (int bx = (x - halfWidth); bx <= (x + halfWidth); bx++) {
+                for (int bz = (z - halfLength); bz <= (z + halfLength); bz++) {
+                    for (int y = y_base + 1; y <= y_base + 4 + y_boost; y++) {
+                        new BlockMatrixNode(world.getBlockAt(bx, y, bz), roomMatrix.getMatrixNodes());
+                    }
+                }
             }
 
-            int center_z = 0;
-            if (source.getZ() >= 0) {
-                center_z = 7 + (source.getZ() * 16) + (4 - random.nextInt(8));
+            RoomPopulator.existingRooms.put(source, startRoom);
+        } else if (existingRooms.containsKey(source)) {
+
+        } else if (random.nextInt(100) < ROOM_CHANCE) {
+            if (source.getX() >= 0) {
+                x = (source.getX() * 16) + (4 - random.nextInt(8));
             } else {
-                center_z = (source.getZ() * 16) - 7 + (4 - random.nextInt(8));
+                x = (source.getX() * 16) + (4 - random.nextInt(8));
+            }
+
+            if (source.getZ() >= 0) {
+                z = 7 + (source.getZ() * 16) + (4 - random.nextInt(8));
+            } else {
+
+                z = (source.getZ() * 16) - 7 + (4 - random.nextInt(8));
             }
             int level = 1;
-            int y_base = 127 - ((4 * level) + 1);
-            int y_boost = 0;
+            int y_base = 127 - ((4 * level) + 1), y_boost = 0;
+
             if (random.nextInt(100) < DOUBLE_HEIGHT_CHANCE) {
                 y_boost = 4;
                 y_base -= 4;
             }
 
-            int halfWidth = random.nextInt(8) + 3;
-            int halfLength = random.nextInt(8) + 3;
+            halfWidth = random.nextInt(6) + 3;
+            halfLength = random.nextInt(6) + 3;
+
+
             HashMap<Block, BlockMatrixNode> roomShape = new HashMap<Block, BlockMatrixNode>();
-            BlockMatrixNode thisRoomMatrix = new BlockMatrixNode(world.getBlockAt(center_x, y_base, center_z), roomShape);
-            Box thisRoom = new Box(center_x, y_base, center_z, 4 + y_boost, 1 + (halfWidth * 2), 1 + (halfLength * 2));
+            BlockMatrixNode thisRoomMatrix = new BlockMatrixNode(world.getBlockAt(x, y_base, z), roomShape);
+            Box thisRoom = new Box(x, y_base, z, 4 + y_boost, 1 + (halfWidth * 2), 1 + (halfLength * 2));
             RoomPopulator.Rooms.put(thisRoom, thisRoomMatrix);
 
-            for (int x = (center_x - halfWidth); x <= (center_x + halfWidth); x++) {
-                for (int z = (center_z - halfLength); z <= (center_z + halfLength); z++) {
-                    for (int y = y_base + 1; y <= y_base + 4 + y_boost; y++) {
-                        new BlockMatrixNode(world.getBlockAt(x, y, z), roomShape);
+            for (int bx = thisRoom.getMinX(); bx <= thisRoom.getMaxX(); bx++) {
+                for (int bz = thisRoom.getMinZ(); bz <= thisRoom.getMaxZ(); bz++) {
+                    for (int y = thisRoom.getMinY(); y <= thisRoom.getMaxY(); y++) {
+                        new BlockMatrixNode(world.getBlockAt(bx, y, bz), roomShape);
                     }
                 }
             }
 
-            for (Box room : new ArrayList<Box>(RoomPopulator.Rooms.keySet())) {
-                if (!thisRoom.equals(room) && thisRoom.intersects(room) && RoomPopulator.Rooms.containsKey(room)) {
-                    thisRoomMatrix.union(RoomPopulator.Rooms.remove(room));
-                }
+            ArrayList<Box> neighbors = new ArrayList<Box>();
+            Box north = null, east = null, south = null, west = null;
+            Chunk northChunk, eastChunk, southChunk, westChunk;
+
+
+            //Make random neighbors.
+
+            //check and reference Neighbors
+            if (world.isChunkLoaded(source.getX() - 1, source.getZ()) && RoomPopulator.existingRooms.containsKey(world.getChunkAt(source.getX() - 1, source.getZ()))) {
+                northChunk = world.getChunkAt(source.getX() - 1, source.getZ());
+                north = RoomPopulator.existingRooms.get(northChunk);
+                neighbors.add(north);
+            }
+            if (world.isChunkLoaded(source.getX(), source.getZ() - 1) && RoomPopulator.existingRooms.containsKey(world.getChunkAt(source.getX(), source.getZ() - 1))) {
+                eastChunk = world.getChunkAt(source.getX(), source.getZ() - 1);
+                east = RoomPopulator.existingRooms.get(eastChunk);
+                neighbors.add(east);
+            }
+            if (world.isChunkLoaded(source.getX() + 1, source.getZ()) && RoomPopulator.existingRooms.containsKey(world.getChunkAt(source.getX() + 1, source.getZ()))) {
+                southChunk = world.getChunkAt(source.getX() + 1, source.getZ());
+                south = RoomPopulator.existingRooms.get(southChunk);
+                neighbors.add(south);
+            }
+            if (world.isChunkLoaded(source.getX(), source.getZ() + 1) && RoomPopulator.existingRooms.containsKey(world.getChunkAt(source.getX(), source.getZ() + 1))) {
+                westChunk = world.getChunkAt(source.getX(), source.getZ() + 1);
+                west = RoomPopulator.existingRooms.get(westChunk);
+                neighbors.add(west);
             }
 
-            for (Box room : thisRoom.getRoomParts()) {
-                for (Box other : thisRoom.getRoomParts()) {
-                    if (room.getMinY() < other.getMinY()) {
-                        if (room.getMinZ() < other.getMaxZ()) {
-                            BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
-                            if (highRoom == null) {
-                                continue;
-                            }
-                            highRoom.setFilter(EnumSet.of(Material.AIR));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getDown() != null) {
-                                    highRoom = highRoom.getDown();
-                                }
-                            }
-                            highRoom.setFilter(EnumSet.of(Material.STONE));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getWest() != null) {
-                                    highRoom = highRoom.getEast();
-                                }
-                            }
-                            highRoom = highRoom.getDown();
-                            while (Material.AIR.equals(highRoom.getBlock().getType())) {
-                                highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                highRoom.getBlock().setData((byte) 0x3);
-                                BlockMatrixNode getNorth = highRoom;
-                                BlockMatrixNode getSouth = highRoom;
-                                while (getNorth.getBlock().getX() <= other.getMaxX()) {
-                                    getNorth = getNorth.getNorth();
-                                    getNorth.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getNorth.getBlock().setData((byte) 0x3);
-                                }
-                                while (getSouth.getBlock().getX() >= other.getMinX()) {
-                                    getSouth = getSouth.getSouth();
-                                    getSouth.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getSouth.getBlock().setData((byte) 0x3);
-                                }
-                                highRoom = highRoom.getEast().getDown();
-                            }
-                        } else if (room.getMaxZ() > other.getMinZ()) {
-                            BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
-                            highRoom.setFilter(EnumSet.of(Material.AIR));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getDown() != null) {
-                                    highRoom = highRoom.getDown();
-                                }
-                            }
-                            highRoom.setFilter(EnumSet.of(Material.STONE));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getEast() != null) {
-                                    highRoom = highRoom.getWest();
-                                }
-                            }
-                            highRoom = highRoom.getDown();
-                            while (Material.AIR.equals(highRoom.getBlock().getType())) {
-                                highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                highRoom.getBlock().setData((byte) 0x3);
-                                BlockMatrixNode getNorth = highRoom;
-                                BlockMatrixNode getSouth = highRoom;
-                                while (getNorth.getBlock().getX() <= other.getMaxX()) {
-                                    getNorth = getNorth.getNorth();
-                                    getNorth.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getNorth.getBlock().setData((byte) 0x3);
-                                }
-                                while (getSouth.getBlock().getX() >= other.getMinX()) {
-                                    getSouth = getSouth.getSouth();
-                                    getSouth.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getSouth.getBlock().setData((byte) 0x3);
-                                }
-                                highRoom = highRoom.getWest().getDown();
-                            }
-                        } else if (room.getMaxX() > other.getMinX()) {
-                            BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
-                            highRoom.setFilter(EnumSet.of(Material.AIR));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getDown() != null) {
-                                    highRoom = highRoom.getDown();
-                                }
-                            }
-                            highRoom.setFilter(EnumSet.of(Material.STONE));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getNorth() != null) {
-                                    highRoom = highRoom.getNorth();
-                                }
-                            }
-                            highRoom = highRoom.getDown();
-                            while (Material.AIR.equals(highRoom.getBlock().getType())) {
-                                highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                highRoom.getBlock().setData((byte) 0x3);
-                                BlockMatrixNode getWest = highRoom;
-                                BlockMatrixNode getEast = highRoom;
-                                while (getWest.getBlock().getZ() <= other.getMaxZ()) {
-                                    getWest = getWest.getWest();
-                                    getWest.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getWest.getBlock().setData((byte) 0x3);
-                                }
-                                while (getEast.getBlock().getZ() >= other.getMinZ()) {
-                                    getEast = getEast.getEast();
-                                    getEast.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getEast.getBlock().setData((byte) 0x3);
-                                }
-                                highRoom = highRoom.getNorth().getDown();
-                            }
-                        } else if (room.getMinX() < other.getMaxX()) {
-                            BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
-                            highRoom.setFilter(EnumSet.of(Material.AIR));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getDown() != null) {
-                                    highRoom = highRoom.getDown();
-                                }
-                            }
-                            highRoom.setFilter(EnumSet.of(Material.STONE));
-                            while (highRoom.hasFilteredDown()) {
-                                if (highRoom.getSouth() != null) {
-                                    highRoom = highRoom.getSouth();
-                                }
-                            }
-                            highRoom = highRoom.getDown();
-                            while (Material.AIR.equals(highRoom.getBlock().getType())) {
-                                highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                highRoom.getBlock().setData((byte) 0x3);
-                                BlockMatrixNode getWest = highRoom;
-                                BlockMatrixNode getEast = highRoom;
-                                while (getWest.getBlock().getX() <= other.getMaxX()) {
-                                    getWest = getWest.getWest();
-                                    getWest.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getWest.getBlock().setData((byte) 0x3);
-                                }
-                                while (getEast.getBlock().getX() >= other.getMinX()) {
-                                    getEast = getEast.getEast();
-                                    getEast.getBlock().setType(Material.COBBLESTONE_STAIRS);
-                                    getEast.getBlock().setData((byte) 0x3);
-                                }
-                                highRoom = highRoom.getSouth().getDown();
+            if (!neighbors.isEmpty()) {
+                ArrayList<Box> halls = new ArrayList<Box>();
+                //North
+                if (north != null && RoomPopulator.COORIDORE_CHANCE > random.nextInt(100)) {
+                    int hallLength = thisRoom.getMinX() - north.getMaxX();
+                    int hallOffset = random.nextInt(Math.min(thisRoom.getMaxZ(), north.getMaxZ()) - Math.max(thisRoom.getMinZ(), north.getMinZ()));
+                    int hallWidth = 1 + random.nextInt((Math.max(thisRoom.getMaxZ(), north.getMaxZ()) - Math.min(thisRoom.getMinZ(), north.getMinZ())) - 1);
+                    hallLength = hallLength == 0 ? 1 : hallLength;
+
+                    Box hall = new Box(thisRoom.getMinX() - hallLength, thisRoom.getMinY(), thisRoom.getMinZ() + hallOffset, thisRoom.getMaxY() - thisRoom.getMinY(), hallWidth, hallLength);
+                    halls.add(hall);
+                }
+                //East
+                if (east != null && RoomPopulator.COORIDORE_CHANCE > random.nextInt(100)) {
+                    int hallLength = (thisRoom.getMinZ() - east.getMaxZ());
+                    int hallOffset = random.nextInt(Math.min(thisRoom.getMaxX(), east.getMaxX()) - Math.max(thisRoom.getMinX(), east.getMinX()));
+                    int hallWidth = 1 + random.nextInt((Math.max(thisRoom.getMaxX(), east.getMaxX()) - Math.min(thisRoom.getMinX(), east.getMinX())) - 1);
+                    hallLength = hallLength == 0 ? 1 : hallLength;
+
+                    Box hall = new Box(thisRoom.getMinX() + hallOffset, thisRoom.getMinY(), thisRoom.getMinZ() - hallLength, thisRoom.getMaxY() - thisRoom.getMinY(), hallWidth, hallLength);
+                    halls.add(hall);
+                }
+                //South
+                if (south != null && RoomPopulator.COORIDORE_CHANCE > random.nextInt(100)) {
+                    int hallLength = south.getMinX() - thisRoom.getMaxX();
+                    int hallOffset = random.nextInt(Math.min(south.getMaxZ(), thisRoom.getMaxZ()) - Math.max(south.getMinZ(), thisRoom.getMinZ()));
+                    int hallWidth = 1 + random.nextInt((Math.max(south.getMaxZ(), thisRoom.getMaxZ()) - Math.min(south.getMinZ(), thisRoom.getMinZ())) - 1);
+                    hallLength = hallLength == 0 ? 1 : hallLength;
+
+                    Box hall = new Box(south.getMinX() - hallLength, thisRoom.getMinY(), south.getMinZ() + hallOffset, thisRoom.getMaxY() - thisRoom.getMinY(), hallWidth, hallLength);
+                    halls.add(hall);
+                }
+
+                //West
+                if (west != null && RoomPopulator.COORIDORE_CHANCE > random.nextInt(100)) {
+                    int hallLength = west.getMinZ() - thisRoom.getMaxZ();
+                    int hallOffset = random.nextInt(Math.min(west.getMaxX(), thisRoom.getMaxX()) - Math.max(west.getMinX(), thisRoom.getMinX()));
+                    int hallWidth = 1 + random.nextInt((Math.max(west.getMaxX(), thisRoom.getMaxX()) - Math.min(west.getMinX(), thisRoom.getMinX())) - 1);
+                    hallLength = hallLength == 0 ? 1 : hallLength;
+
+                    Box hall = new Box(west.getMinX() - hallLength, thisRoom.getMinY(), west.getMinZ() + hallOffset, thisRoom.getMaxY() - thisRoom.getMinY(), hallWidth, hallLength);
+                    halls.add(hall);
+
+                }
+
+                for (Box hall : halls) {
+                    roomShape = new HashMap<Block, BlockMatrixNode>();
+                    for (int bx = hall.getMinX(); bx <= hall.getMaxX(); bx++) {
+                        for (int bz = hall.getMinZ(); bz <= hall.getMaxZ(); bz++) {
+                            for (int y = hall.getMinY(); y <= hall.getMaxY(); y++) {
+                                Block block = world.getBlockAt(bx, y, bz);
+                                block.setType(Material.AIR);
+                                new BlockMatrixNode(block, roomShape);
                             }
                         }
                     }
                 }
+            } else {
+                for (int i = random.nextInt(9); i < 10; i++) {
+                    int sX = source.getX(), sZ = source.getZ();
+                    List<Chunk> chunks = Arrays.asList((Chunk) world.getChunkAt(sX + 1, sZ), world.getChunkAt(sX - 1, sZ), world.getChunkAt(sX, sZ - 1), world.getChunkAt(sX, sZ + 1));
+                }
+
             }
-
-//            Block roomCenter = world.getBlockAt(center_x, y_base + 1, center_z);
-//            Block northWall = roomCenter.getFace(BlockFace.NORTH);
-//            while (northWall.getType().equals(Material.AIR)) {
-//                northWall = northWall.getFace(BlockFace.NORTH);
-//            }
-//            Block eastWall = roomCenter.getFace(BlockFace.EAST);
-//            while (eastWall.getType().equals(Material.AIR)) {
-//                eastWall = eastWall.getFace(BlockFace.EAST);
-//            }
-//            Block southWall = roomCenter.getFace(BlockFace.SOUTH);
-//            while (southWall.getType().equals(Material.AIR)) {
-//                southWall = southWall.getFace(BlockFace.SOUTH);
-//            }
-//            Block westWall = roomCenter.getFace(BlockFace.WEST);
-//            while (westWall.getType().equals(Material.AIR)) {
-//                westWall = westWall.getFace(BlockFace.WEST);
-//            }
-//            huntingCooridor(northWall, random);
-//            huntingCooridor(eastWall, random);
-//            huntingCooridor(southWall, random);
-//            huntingCooridor(westWall, random);
-        }
-    }
-
-
-    public Box getRandomHall(Box box, Random random) {
-        int direction = random.nextInt(4), modX = 0, modY = 0, modZ = 0, width = 0, height = 0, length = 0;
-        int run = 11;
-        switch (direction) {
-            case 0:
-                modX = box.getWidth() + run / 2;
-                length = random.nextInt(3) + 1;
-                width = run;
-                break;
-            case 1:
-                modZ = box.getLength() + run / 2;
-                width = random.nextInt(3) + 1;
-                length = run;
-                break;
-            case 2:
-                modX = -box.getWidth() - run / 2;
-                length = random.nextInt(3) + 1;
-                width = run;
-                break;
-            case 3:
-                modZ = -box.getLength() - run / 2;
-                width = random.nextInt(3) + 1;
-                length = run;
-                break;
-        }
-        return new Box(box.getX() + modX, box.getY(), box.getZ(), random.nextInt(2) + 2, width, length);
-    }
-
-    private void addToBlockMatrix() {
-
-    }
-
-    //the passed block should be at the desired floor level, the path of blocks above this will be hollowed out as well
-    private void huntingCooridor(Block block, Random random) {
-        if (random.nextInt(100) < COORIDORE_CHANCE) {
-            for (BlockFace face : EnumSet.of(BlockFace.NORTH, BlockFace.EAST, BlockFace.WEST, BlockFace.SOUTH)) {
-                if (block.getFace(face).getType().equals(Material.STONE)) {
-                    Block topBlock = block.getFace(BlockFace.UP);
-                    while (true) {
-                        block.getFace(face).setType(Material.AIR);
-                        topBlock.getFace(face).setType(Material.AIR);
-                        switch (face) {
-                            case NORTH:
-                            case SOUTH:
-                                if (scanDirection(BlockFace.EAST, block.getFace(BlockFace.EAST), Material.AIR, 20)) {
-                                    while (!block.getFace(BlockFace.EAST).getType().equals(Material.AIR)) {
-                                        block = block.getFace(BlockFace.EAST);
-                                        block.setType(Material.AIR);
-                                    }
-                                    return;
-                                }
-                                if (scanDirection(BlockFace.WEST, block.getFace(BlockFace.WEST), Material.AIR, 20)) {
-                                    while (!block.getFace(BlockFace.WEST).getType().equals(Material.AIR)) {
-                                        block = block.getFace(BlockFace.WEST);
-                                        block.setType(Material.AIR);
-                                    }
-                                    return;
-                                }
-                                break;
-                            case EAST:
-                            case WEST:
-                                if (scanDirection(BlockFace.NORTH, block.getFace(BlockFace.NORTH), Material.AIR, 20)) {
-                                    while (!block.getFace(BlockFace.NORTH).getType().equals(Material.AIR)) {
-                                        block = block.getFace(BlockFace.NORTH);
-                                        block.setType(Material.AIR);
-                                    }
-                                    return;
-                                }
-                                if (scanDirection(BlockFace.SOUTH, block.getFace(BlockFace.SOUTH), Material.AIR, 20)) {
-                                    while (!block.getFace(BlockFace.SOUTH).getType().equals(Material.AIR)) {
-                                        block = block.getFace(BlockFace.SOUTH);
-                                        block.setType(Material.AIR);
-                                    }
-                                    return;
-                                }
-                                break;
-                        }
-                        block = block.getFace(face);
-                        topBlock = topBlock.getFace(face);
-                    }
-                }
-            }
-        }
-    }
-
-    private boolean scanDirection(BlockFace face, Block block, Material targetType, int maxDistance) {
-        while (!block.getFace(face).getType().equals(targetType)) {
-            block = block.getFace(face);
-            maxDistance--;
-            if (maxDistance <= 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Always pass true for firstIteration except from within firstIteration.
-     *
-     * @param node
-     * @param random
-     * @param direction
-     * @param firstIteration
-     */
-    private void randomCooridoor(BlockMatrixNode node, Random random, int direction, boolean firstIteration) {
-        node.setFilter(new HashSet<Material>(EnumSet.of(Material.AIR)));
-        int dir = random.nextInt(4);
-        switch (dir) {
-            case 0:
-                while (node.hasFilteredNorth()) {
-                    node = node.getNorth();
-                }
-                node.setFilter(new HashSet<Material>(EnumSet.of(Material.STONE)));
-                int maxDistanceN = random.nextInt(12) + 4;
-                while (node.hasFilteredNorth()) {
-                    node.getBlock().setType(Material.AIR);
-                    node = node.getNorth();
-                    if (maxDistanceN == 0) {
-                        break;
-                    }
-                    maxDistanceN--;
-                }
-                if (firstIteration) {
-                    randomCooridoor(node, random, random.nextInt(4), false);
-                }
-                break;
-            case 1:
-                while (node.hasFilteredEast()) {
-                    node = node.getEast();
-                }
-                node.setFilter(new HashSet<Material>(EnumSet.of(Material.STONE)));
-                int maxDistanceE = random.nextInt(12) + 4;
-                while (node.hasFilteredEast()) {
-                    node.getBlock().setType(Material.AIR);
-                    node = node.getEast();
-                    if (maxDistanceE == 0) {
-                        break;
-                    }
-                    maxDistanceE--;
-                }
-                if (firstIteration) {
-                    randomCooridoor(node, random, random.nextInt(4), false);
-                }
-                break;
-            case 2:
-                while (node.hasFilteredSouth()) {
-                    node = node.getSouth();
-                }
-                node.setFilter(new HashSet<Material>(EnumSet.of(Material.STONE)));
-                int maxDistanceS = random.nextInt(12) + 4;
-                while (node.hasFilteredSouth()) {
-                    node.getBlock().setType(Material.AIR);
-                    node = node.getSouth();
-                    if (maxDistanceS == 0) {
-                        break;
-                    }
-                    maxDistanceS--;
-                }
-                if (firstIteration) {
-                    randomCooridoor(node, random, random.nextInt(4), false);
-                }
-                break;
-            case 3:
-                while (node.hasFilteredWest()) {
-                    node = node.getWest();
-                }
-                node.setFilter(new HashSet<Material>(EnumSet.of(Material.STONE)));
-                int maxDistanceW = random.nextInt(12) + 4;
-                while (node.hasFilteredWest()) {
-                    node.getBlock().setType(Material.AIR);
-                    node = node.getWest();
-                    if (maxDistanceW == 0) {
-                        break;
-                    }
-                    maxDistanceW--;
-                }
-                if (firstIteration) {
-                    randomCooridoor(node, random, random.nextInt(4), false);
-                }
-                break;
         }
     }
 }
+
+//    for(
+//    Box room
+//    :new ArrayList<Box>(RoomPopulator.Rooms.keySet()))
+//
+//    {
+//        if (!thisRoom.equals(room) && thisRoom.intersects(room) && RoomPopulator.Rooms.containsKey(room)) {
+//            thisRoomMatrix.union(RoomPopulator.Rooms.remove(room));
+//        }
+//    }
+//
+//    for(
+//    Box room
+//    :thisRoom.getRoomParts())
+//
+//    {
+//        for (Box other : thisRoom.getRoomParts()) {
+//            if (room.getMinY() < other.getMinY()) {
+//                if (room.getMinZ() < other.getMaxZ()) {
+//                    BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
+//                    if (highRoom == null) {
+//                        continue;
+//                    }
+//                    highRoom.setFilter(EnumSet.of(Material.AIR));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getDown() != null) {
+//                            highRoom = highRoom.getDown();
+//                        }
+//                    }
+//                    highRoom.setFilter(EnumSet.of(Material.STONE));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getWest() != null) {
+//                            highRoom = highRoom.getEast();
+//                        }
+//                    }
+//                    highRoom = highRoom.getDown();
+//                    while (Material.AIR.equals(highRoom.getBlock().getType())) {
+//                        highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                        highRoom.getBlock().setData((byte) 0x3);
+//                        BlockMatrixNode getNorth = highRoom;
+//                        BlockMatrixNode getSouth = highRoom;
+//                        while (getNorth.getBlock().getX() <= other.getMaxX()) {
+//                            getNorth = getNorth.getNorth();
+//                            getNorth.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getNorth.getBlock().setData((byte) 0x3);
+//                        }
+//                        while (getSouth.getBlock().getX() >= other.getMinX()) {
+//                            getSouth = getSouth.getSouth();
+//                            getSouth.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getSouth.getBlock().setData((byte) 0x3);
+//                        }
+//                        highRoom = highRoom.getEast().getDown();
+//                    }
+//                } else if (room.getMaxZ() > other.getMinZ()) {
+//                    BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
+//                    highRoom.setFilter(EnumSet.of(Material.AIR));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getDown() != null) {
+//                            highRoom = highRoom.getDown();
+//                        }
+//                    }
+//                    highRoom.setFilter(EnumSet.of(Material.STONE));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getEast() != null) {
+//                            highRoom = highRoom.getWest();
+//                        }
+//                    }
+//                    highRoom = highRoom.getDown();
+//                    while (Material.AIR.equals(highRoom.getBlock().getType())) {
+//                        highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                        highRoom.getBlock().setData((byte) 0x3);
+//                        BlockMatrixNode getNorth = highRoom;
+//                        BlockMatrixNode getSouth = highRoom;
+//                        while (getNorth.getBlock().getX() <= other.getMaxX()) {
+//                            getNorth = getNorth.getNorth();
+//                            getNorth.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getNorth.getBlock().setData((byte) 0x3);
+//                        }
+//                        while (getSouth.getBlock().getX() >= other.getMinX()) {
+//                            getSouth = getSouth.getSouth();
+//                            getSouth.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getSouth.getBlock().setData((byte) 0x3);
+//                        }
+//                        highRoom = highRoom.getWest().getDown();
+//                    }
+//                } else if (room.getMaxX() > other.getMinX()) {
+//                    BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
+//                    highRoom.setFilter(EnumSet.of(Material.AIR));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getDown() != null) {
+//                            highRoom = highRoom.getDown();
+//                        }
+//                    }
+//                    highRoom.setFilter(EnumSet.of(Material.STONE));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getNorth() != null) {
+//                            highRoom = highRoom.getNorth();
+//                        }
+//                    }
+//                    highRoom = highRoom.getDown();
+//                    while (Material.AIR.equals(highRoom.getBlock().getType())) {
+//                        highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                        highRoom.getBlock().setData((byte) 0x3);
+//                        BlockMatrixNode getWest = highRoom;
+//                        BlockMatrixNode getEast = highRoom;
+//                        while (getWest.getBlock().getZ() <= other.getMaxZ()) {
+//                            getWest = getWest.getWest();
+//                            getWest.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getWest.getBlock().setData((byte) 0x3);
+//                        }
+//                        while (getEast.getBlock().getZ() >= other.getMinZ()) {
+//                            getEast = getEast.getEast();
+//                            getEast.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getEast.getBlock().setData((byte) 0x3);
+//                        }
+//                        highRoom = highRoom.getNorth().getDown();
+//                    }
+//                } else if (room.getMinX() < other.getMaxX()) {
+//                    BlockMatrixNode highRoom = thisRoomMatrix.getMatrixNode(world.getBlockAt(other.getX(), other.getY(), other.getZ()));
+//                    highRoom.setFilter(EnumSet.of(Material.AIR));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getDown() != null) {
+//                            highRoom = highRoom.getDown();
+//                        }
+//                    }
+//                    highRoom.setFilter(EnumSet.of(Material.STONE));
+//                    while (highRoom.hasFilteredDown()) {
+//                        if (highRoom.getSouth() != null) {
+//                            highRoom = highRoom.getSouth();
+//                        }
+//                    }
+//                    highRoom = highRoom.getDown();
+//                    while (Material.AIR.equals(highRoom.getBlock().getType())) {
+//                        highRoom.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                        highRoom.getBlock().setData((byte) 0x3);
+//                        BlockMatrixNode getWest = highRoom;
+//                        BlockMatrixNode getEast = highRoom;
+//                        while (getWest.getBlock().getX() <= other.getMaxX()) {
+//                            getWest = getWest.getWest();
+//                            getWest.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getWest.getBlock().setData((byte) 0x3);
+//                        }
+//                        while (getEast.getBlock().getX() >= other.getMinX()) {
+//                            getEast = getEast.getEast();
+//                            getEast.getBlock().setType(Material.COBBLESTONE_STAIRS);
+//                            getEast.getBlock().setData((byte) 0x3);
+//                        }
+//                        highRoom = highRoom.getSouth().getDown();
+//                    }
+//                }
+//            }
+//        }
+//    }
+
