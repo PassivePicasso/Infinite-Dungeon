@@ -26,9 +26,9 @@ public class RoomPopulator extends BlockPopulator {
 
     @Override
     public void populate(World world, Random random, Chunk source) {
-        int x, z, level, y_base, y_boost, xOffset, zOffset, halfWidth = random.nextInt(8) + 3, halfLength = random.nextInt(8) + 3, val;
-        xOffset = random.nextInt(11 - (halfWidth * source.getX() >= 0 ? 1 : -1));
-        zOffset = random.nextInt(11 - (halfLength * source.getZ() >= 0 ? 1 : -1));
+        int x, z, level, y_base, y_boost, xOffset, zOffset, halfWidth = random.nextInt(9), halfLength = random.nextInt(9), val;
+        xOffset = halfWidth == 0 ? 0 : (16 % (halfWidth * 2)) / 2;//random.nextInt(11 - (halfWidth * source.getX() >= 0 ? 1 : -1));
+        zOffset = halfLength == 0 ? 0 : (16 % (halfLength * 2)) / 2;//random.nextInt(11 - (halfLength * source.getZ() >= 0 ? 1 : -1));
         Box room;
         x = (source.getX() * 16);
         z = (source.getZ() * 16);
@@ -37,17 +37,10 @@ public class RoomPopulator extends BlockPopulator {
         y_boost = (random.nextInt(100) < 10 ? 4 : 0);
         BuildRequest buildRequest;
 
-        if (ROOM_CHANCE > random.nextInt(100)) {
-            room = new Box(x + xOffset, y_base - y_boost, z + zOffset, 4 + y_boost, halfLength * 2, halfWidth * 2);
+        if (ROOM_CHANCE * 2 > random.nextInt(100)) {
+            room = new Box(x + (x < 0 ? -xOffset : xOffset), y_base - y_boost, z + (z < 0 ? -zOffset : zOffset), 4 + y_boost, halfLength * 2, halfWidth * 2);
         } else {
-            room = new Box(x + xOffset, y_base - y_boost, z + zOffset, 4 + y_boost, halfLength, halfWidth);
-        }
-        for (int bx = room.getMinX(); bx <= (room.getMaxX()); bx++) {
-            for (int bz = room.getMinZ(); bz <= room.getMaxZ(); bz++) {
-                for (int y = room.getMinY(); y < room.getMaxY(); y++) {
-                    world.getBlockAt(bx, y, bz).setTypeId(0);
-                }
-            }
+            room = new Box(x + xOffset, y_base - y_boost, z + zOffset, 4 + y_boost, 1, 1);
         }
 
         BlockFace direction = BlockFace.values()[random.nextInt(4)];
@@ -71,8 +64,15 @@ public class RoomPopulator extends BlockPopulator {
             }
         }
 
-        buildRequest = new BuildRequest(source.getX(), source.getZ(), room, BlockFace.NORTH);
+        buildRequest = new BuildRequest(source.getX(), source.getZ(), room, BlockFace.SELF);
         if (requestList.contains(buildRequest)) {
+            for (int bx = room.getMinX(); bx <= (room.getMaxX()); bx++) {
+                for (int bz = room.getMinZ(); bz <= room.getMaxZ(); bz++) {
+                    for (int y = room.getMinY(); y < room.getMaxY(); y++) {
+                        world.getBlockAt(bx, y, bz).setTypeId(0);
+                    }
+                }
+            }
             buildRequest = requestList.remove(requestList.indexOf(buildRequest));
             Box requester = buildRequest.getRequester();
             direction = buildRequest.getDirection();
@@ -101,10 +101,12 @@ public class RoomPopulator extends BlockPopulator {
                     if (nextDir != null) {
                         current.setType(Material.WOODEN_DOOR);
                         current.getFace(BlockFace.UP).setType(Material.WOODEN_DOOR);
-                         if(doubleWide){
-                                current.getFace(BlockFace.EAST).setTypeId(0);
-                                current.getFace(BlockFace.WEST).setTypeId(0);
-                            }
+                        if (doubleWide) {
+                            current.getFace(BlockFace.EAST).setTypeId(0);
+                            current.getFace(BlockFace.WEST).setTypeId(0);
+                            current.getFace(BlockFace.EAST).getFace(BlockFace.NORTH).setTypeId(0);
+                            current.getFace(BlockFace.WEST).getFace(BlockFace.SOUTH).setTypeId(0);
+                        }
                         while (!(bx >= requester.getMinX() && bx <= requester.getMaxX())) {
                             current = current.getFace(nextDir);
                             bx = current.getX();
@@ -127,9 +129,11 @@ public class RoomPopulator extends BlockPopulator {
                             bz = current.getZ();
                             current.setTypeId(0);
                             current.getFace(BlockFace.UP).setTypeId(0);
-                            if(doubleWide){
-                                current.getFace(BlockFace.NORTH).setTypeId(0);
-                                current.getFace(BlockFace.SOUTH).setTypeId(0);
+                            if (doubleWide) {
+                                current.getFace(BlockFace.WEST).setTypeId(0);
+                                current.getFace(BlockFace.EAST).setTypeId(0);
+                                current.getFace(BlockFace.UP).getFace(BlockFace.EAST).setTypeId(0);
+                                current.getFace(BlockFace.UP).getFace(BlockFace.WEST).setTypeId(0);
                             }
                             if (by < requester.getMinY()) {
                                 current = current.getFace(BlockFace.UP);
@@ -155,14 +159,16 @@ public class RoomPopulator extends BlockPopulator {
                     if (nextDir != null) {
                         current.setType(Material.WOODEN_DOOR);
                         current.getFace(BlockFace.UP).setType(Material.WOODEN_DOOR);
-                        while (!(bz >= requester.getMinZ() && bz <= requester.getMaxZ())) {
+                        while (!(bz > requester.getMinZ() && bz < requester.getMaxZ())) {
                             current = current.getFace(nextDir);
                             bz = current.getZ();
                             current.setTypeId(0);
                             current.getFace(BlockFace.UP).setTypeId(0);
-                            if(doubleWide){
+                            if (doubleWide) {
                                 current.getFace(BlockFace.NORTH).setTypeId(0);
                                 current.getFace(BlockFace.SOUTH).setTypeId(0);
+                                current.getFace(BlockFace.NORTH).getFace(BlockFace.UP).setTypeId(0);
+                                current.getFace(BlockFace.SOUTH).getFace(BlockFace.UP).setTypeId(0);
                             }
                         }
                         nextDir = null;
@@ -173,21 +179,21 @@ public class RoomPopulator extends BlockPopulator {
                         nextDir = BlockFace.SOUTH;
                     } else if (bx > requester.getMaxX() && bx > requester.getMinX()) {
                         nextDir = BlockFace.NORTH;
-                    } else if (bx == requester.getMaxX() || bz == requester.getMinX()) {
-                        nextDir = BlockFace.SELF;
                     }
 
                     if (nextDir != null) {
                         current.setTypeId(0);
                         current.getFace(BlockFace.UP).setTypeId(0);
-                        while (!(bx >= requester.getMinX() && bx <= requester.getMaxX())) {
+                        while (!(bx > requester.getMinX() && bx < requester.getMaxX())) {
                             current = current.getFace(nextDir);
                             bx = current.getX();
                             current.setTypeId(0);
                             current.getFace(BlockFace.UP).setTypeId(0);
-                            if(doubleWide){
+                            if (doubleWide) {
                                 current.getFace(BlockFace.EAST).setTypeId(0);
                                 current.getFace(BlockFace.WEST).setTypeId(0);
+                                current.getFace(BlockFace.EAST).getFace(BlockFace.UP).setTypeId(0);
+                                current.getFace(BlockFace.WEST).getFace(BlockFace.UP).setTypeId(0);
                             }
                             if (by < requester.getMinY()) {
                                 current = current.getFace(BlockFace.UP);
