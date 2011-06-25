@@ -30,7 +30,6 @@
     <orderEntry type="library" name="Maven: commons-logging:commons-logging:1.1.1" level="project" />
     <orderEntry type="library" name="Maven: cglib:cglib-nodep:2.2" level="project" />
     <orderEntry type="library" name="Maven: org.neodatis.odb:neodatis-odb:1.9.30.689" level="project" />
-    <orderEntry type="module" module-name="me.passivepicasso.util" />
   </component>
 </module>
 
