@@ -22,7 +22,7 @@
 /manifest.mf
 
 /world
-/*.iml
+*.iml
 
 # Mac filesystem dust
 /.DS_Store
