@@ -1,5 +1,6 @@
 package me.passivepicasso.infinitedungeon;
 
+import joptsimple.util.KeyValuePair;
 import me.passivepicasso.util.Box;
 import org.bukkit.Material;
 import org.bukkit.Chunk;
@@ -13,37 +14,71 @@ import java.util.*;
 
 public class RoomPopulator extends BlockPopulator {
 
-    private static final int ROOM_CHANCE = 20;
+    private static final int ROOM_CHANCE = 25;
 
-    private static List<BuildRequest> requestList = new ArrayList<BuildRequest>();
-    public static List<Box> ROOMS = new ArrayList<Box>();
+    public static List<BuildRequest> requestList = new ArrayList<BuildRequest>();
+    public static Map<BuildRequest, Box> ROOMS = new HashMap<BuildRequest, Box>();
+
+    public static Box getHomeRoom() {
+        if (homeRoom != null) {
+
+        }
+        return homeRoom;
+    }
+
+    public static Box homeRoom;
+
 
     @Override
     public void populate(World world, Random random, Chunk source) {
 
-        BuildRequest buildRequest = new BuildRequest(source.getX(), source.getZ(), new Box(), BlockFace.SELF);
-        if (ROOMS.isEmpty()) {
-            Box room = createRoom(world, random, source);
-        }
-        if (requestList.contains(buildRequest)) {
-            Box room = createRoom(world, random, source);
-            buildRequest = requestList.remove(requestList.indexOf(buildRequest));
-            Box requester = buildRequest.getRequester();
-            BlockFace direction = buildRequest.getDirection();
+        BuildRequest buildRequest = new BuildRequest(source.getX(), source.getZ());
 
+        //Create Starting room for which all other rooms will be connected to.  Creating the starting room creates at minimum a single request for an additional room.
+        if (homeRoom == null) {
+            Box room = createRoom(world, random, source);
+            ROOMS.put(new BuildRequest(source.getX(), source.getZ()), room);
+            homeRoom = room;
+            int y = room.getMinY() - 1;
+            for (int bx = room.getMinX(); bx <= (room.getMaxX()); bx++) {
+                for (int bz = room.getMinZ(); bz <= room.getMaxZ(); bz++) {
+                    world.getBlockAt(bx, y, bz).setTypeId(12);
+                }
+            }
+        }
+        //If this chunk has a request to construct a room...
+        if (requestList.contains(buildRequest)) {
+
+            //create room with at minimum a single request to a neighboring chunk.
+            Box room = createRoom(world, random, source);
+
+            //remove this chunks request from the request list.
+            buildRequest = requestList.remove(requestList.indexOf(buildRequest));
+
+            //Store a reference to the request and generated room, for backwards awareness;
+            ROOMS.put(buildRequest, room);
+
+            Box requester = buildRequest.getRequester();
+            BlockFace direction = buildRequest.getDirection(); // direction leading back towards the chunk that made the request
+
+            //Get the block from corner of the generated room, select the next block towards direction until we hit a solid block (non air)
             Block current = world.getBlockAt(room.getMinX(), room.getMinY(), room.getMinZ());
             while (current.getTypeId() == 0) {
                 current = current.getFace(direction);
             }
+
+            //prepare hall direction awareness.
             BlockFace nextDir = null;
 
             switch (direction) {
                 case NORTH:
                 case SOUTH:
+                    //if we are traveling to the north/south, run north/south first hall gen.
                     nextDir = createVerticalHall(nextDir, requester, current);
                     break;
                 case EAST:
                 case WEST:
+                    //if we are traveling to the East/West, run East/West first hall gen.
                     nextDir = createHorizontalHall(nextDir, requester, current);
                     break;
             }
@@ -176,7 +211,7 @@ public class RoomPopulator extends BlockPopulator {
         return nextDir;
     }
 
-    private static Box createRoom(World world, Random random, Chunk source) {
+    public static Box createRoom(World world, Random random, Chunk source) {
         int x, z, level, y_base, y_boost = 0, xOffset, zOffset, halfWidth = random.nextInt(9), halfLength = random.nextInt(9), val;
         xOffset = halfWidth == 0 ? 0 : (16 % (halfWidth * 2)) / 2;//random.nextInt(11 - (halfWidth * source.getX() >= 0 ? 1 : -1));
         zOffset = halfLength == 0 ? 0 : (16 % (halfLength * 2)) / 2;//random.nextInt(11 - (halfLength * source.getZ() >= 0 ? 1 : -1));
@@ -187,6 +222,7 @@ public class RoomPopulator extends BlockPopulator {
         while (random.nextInt(100) < 10) {
             y_boost += 4;
         }
+
         BuildRequest buildRequest;
 
         Box room = new Box(x + (x < 0 ? -xOffset : xOffset), y_base - y_boost, z + (z < 0 ? -zOffset : zOffset), 4 + y_boost, halfLength * 2, halfWidth * 2);
@@ -222,7 +258,6 @@ public class RoomPopulator extends BlockPopulator {
                 }
             }
         }
-        ROOMS.add(room);
         return room;
     }
 }

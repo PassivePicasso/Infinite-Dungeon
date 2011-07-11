@@ -3,6 +3,7 @@ package me.passivepicasso.infinitedungeon;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.event.Event;
 import org.bukkit.generator.BlockPopulator;
 import org.bukkit.generator.ChunkGenerator;
@@ -15,9 +16,8 @@ import java.util.Random;
 
 public class InfiniteDungeon extends JavaPlugin {
 
-    private static byte[] chunkGenArray = new byte[32768];
     private InfinitePlayerListener playerListener;
-    private World infiniteDungeon = null;
+    private World infiniteDungeon;
 
     public World getDungeonWorld() {
         return infiniteDungeon;
@@ -27,31 +27,7 @@ public class InfiniteDungeon extends JavaPlugin {
     }
 
     public void onEnable() {
-        infiniteDungeon = getServer().createWorld("InfiniteDungeon", World.Environment.NORMAL, new ChunkGenerator() {
-            @Override
-            public byte[] generate(World world, Random random, int x, int z) {
-//                if (x == 0 && z == 0) {
-//                    return emptyChunk;
-//                }
-                return chunkGenArray.clone();
-            }
-
-            @Override
-            public boolean canSpawn(World world, int x, int z) {
-                return x == 0 && z == 0;
-            }
-
-            @Override
-            public Location getFixedSpawnLocation(World world, Random random) {
-                return new Location(world, 5, 127, 5);
-            }
-
-
-            @Override
-            public List<BlockPopulator> getDefaultPopulators(World world) {
-                return Arrays.asList((BlockPopulator)new RoomPopulator());
-            }
-        });
+        infiniteDungeon = getServer().createWorld("InfiniteDungeon", World.Environment.NORMAL, new IDChunkGenerator());
 
 
         playerListener = new InfinitePlayerListener(infiniteDungeon);
@@ -73,15 +49,11 @@ public class InfiniteDungeon extends JavaPlugin {
         for (int cx = 0; cx < 16; cx++) {
             for (int cz = 0; cz < 16; cz++) {
                 for (int y = 0; y < 128; y++) {
-//                    if (y == 0) {
-//                        emptyChunk[(cx * 16 + cz) * 128 + y] = (byte) Material.BEDROCK.getId();
-//                    } else {
-//                        emptyChunk[(cx * 16 + cz) * 128 + y] = (byte) Material.AIR.getId();
-//                    }
-                    if (y == 0 || y == 0) {
-                        chunkGenArray[(cx * 16 + cz) * 128 + y] = (byte) Material.BEDROCK.getId();
+                    //TODO modify second check to 127 to create the ceiling
+                    if (y == 0 /*|| y == 0*/) {
+                        IDChunkGenerator.ChunkGenArray[(cx * 16 + cz) * 128 + y] = (byte) Material.BEDROCK.getId();
                     } else {
-                        chunkGenArray[(cx * 16 + cz) * 128 + y] = (byte) Material.STONE.getId();
+                        IDChunkGenerator.ChunkGenArray[(cx * 16 + cz) * 128 + y] = (byte) Material.STONE.getId();
                     }
                 }
             }

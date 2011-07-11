@@ -15,6 +15,11 @@ public class BuildRequest {
         this.requester = requester;
     }
 
+    public BuildRequest(int targetX, int targetZ) {
+        this.targetX = targetX;
+        this.targetZ = targetZ;
+    }
+
     public int getTargetX() {
         return targetX;
     }
@@ -40,8 +45,7 @@ public class BuildRequest {
 
         BuildRequest that = (BuildRequest) o;
 
-        if (targetX != that.targetX) return false;
-        return targetZ == that.targetZ;
+        return targetX == that.targetX && targetZ == that.targetZ;
     }
 
     @Override
