@@ -27,10 +27,10 @@ public class InfiniteDungeon extends JavaPlugin {
     }
 
     public void onEnable() {
-        infiniteDungeon = getServer().createWorld("InfiniteDungeon", World.Environment.NORMAL, new IDChunkGenerator());
+        IDChunkGenerator generator = new IDChunkGenerator();
+        infiniteDungeon = getServer().createWorld("InfiniteDungeon", World.Environment.NORMAL, generator);
 
-
-        playerListener = new InfinitePlayerListener(infiniteDungeon);
+        playerListener = new InfinitePlayerListener(infiniteDungeon, generator);
 
         registerEvents();
     }

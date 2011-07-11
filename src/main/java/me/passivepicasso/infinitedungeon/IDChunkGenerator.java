@@ -12,24 +12,28 @@ import java.util.Random;
 public class IDChunkGenerator extends ChunkGenerator {
 
     public static final byte[] ChunkGenArray = new byte[32768];
+    public static Location fixedSpawnLocation;
+    private static List<BlockPopulator> defaultPopulators = Arrays.asList((BlockPopulator) new RoomPopulator());
 
     @Override
     public byte[] generate(World world, Random random, int x, int z) {
         return ChunkGenArray.clone();
     }
 
+    public Location getFixedSpawnLocation(World world) {
+        return getFixedSpawnLocation(world, new Random());
+    }
+
     @Override
     public Location getFixedSpawnLocation(World world, Random random) {
-        if (RoomPopulator.homeRoom != null) {
-            System.out.print("found homeRoom");
-            return new Location(world, RoomPopulator.homeRoom.getMinX(), RoomPopulator.homeRoom.getMinY(), RoomPopulator.homeRoom.getMinZ());
-        } else {
-            return new Location(world, 0, 0, 0);
+        if (fixedSpawnLocation == null) {
+            fixedSpawnLocation = new Location(world, 0, 0, 0);
         }
+        return fixedSpawnLocation;
     }
 
     @Override
     public List<BlockPopulator> getDefaultPopulators(World world) {
-        return Arrays.asList((BlockPopulator) new RoomPopulator());
+        return defaultPopulators;
     }
 }
