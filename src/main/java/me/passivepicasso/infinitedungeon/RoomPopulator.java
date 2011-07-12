@@ -117,13 +117,10 @@ public class RoomPopulator extends BlockPopulator {
             nextDir = BlockFace.NORTH;
         }
         if (nextDir != null) {
-            current.setType(Material.WOODEN_DOOR);
-            current.getFace(BlockFace.UP).setType(Material.WOODEN_DOOR);
 
             while (!(bx >= requester.getMinX() && bx <= requester.getMaxX())) {
                 current = current.getFace(nextDir);
                 bx = current.getX();
-                System.out.print(bx + "bounds: mX = " + requester.getMinX() + " MX = " + requester.getMaxX());
                 current.setTypeId(0);
                 current.getFace(BlockFace.UP).setTypeId(0);
                 if (by < requester.getMinY()) {
@@ -161,8 +158,6 @@ public class RoomPopulator extends BlockPopulator {
                     by = current.getY();
                 }
             }
-            current.setType(Material.WOODEN_DOOR);
-            current.getFace(BlockFace.UP).setType(Material.WOODEN_DOOR);
         }
         return nextDir;
     }
@@ -179,10 +174,6 @@ public class RoomPopulator extends BlockPopulator {
 
 
         if (nextDir != null) {
-            //Create door every time at entrance to hall.
-            current.setType(Material.WOODEN_DOOR);
-            current.getFace(BlockFace.UP).setType(Material.WOODEN_DOOR);
-
             //while current is not within the z bounds of the room...
 
             while (!(bz >= requester.getMinZ() && bz <= requester.getMaxZ())) {
@@ -204,16 +195,16 @@ public class RoomPopulator extends BlockPopulator {
         }
 
         int bx = current.getX();
-        if (bx < requester.getMinX() && bx < requester.getMaxX()) {
+        if (bx < requester.getMinX()) {
             nextDir = BlockFace.SOUTH;
-        } else if (bx > requester.getMaxX() && bx > requester.getMinX()) {
+        } else if (bx > requester.getMaxX()) {
             nextDir = BlockFace.NORTH;
         }
 
         if (nextDir != null) {
             current.setTypeId(0);
             current.getFace(BlockFace.UP).setTypeId(0);
-            while (!(bx > requester.getMinX() && bx < requester.getMaxX())) {
+            while (!(bx >= requester.getMinX() && bx <= requester.getMaxX())) {
                 current = current.getFace(nextDir);
                 bx = current.getX();
                 current.setTypeId(0);
@@ -228,8 +219,6 @@ public class RoomPopulator extends BlockPopulator {
                     by = current.getY();
                 }
             }
-            current.setType(Material.WOODEN_DOOR);
-            current.getFace(BlockFace.UP).setType(Material.WOODEN_DOOR);
         }
         return nextDir;
     }
@@ -250,14 +239,15 @@ public class RoomPopulator extends BlockPopulator {
 
         Box room = new Box(x + (x < 0 ? xOffset : -xOffset), y_base - y_boost, z + (z < 0 ? zOffset : -zOffset), 4 + y_boost, halfLength * 2, halfWidth * 2);
 
+        //Create atleast 1 request in the target direction.
         BlockFace direction = BlockFace.values()[random.nextInt(4)];
-        BuildRequest request = new BuildRequest(source.getX() + direction.getModX(), source.getZ() + direction.getModZ(), room, direction.getOppositeFace());
-        requestList.add(request);
+        buildRequest = new BuildRequest(source.getX() + direction.getModX(), source.getZ() + direction.getModZ(), room, direction.getOppositeFace());
+        requestList.add(buildRequest);
 
         BlockFace[] faces = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
         ArrayList<BlockFace> usedDirections = new ArrayList<BlockFace>();
         usedDirections.add(direction);
-        for (int i = random.nextInt(3); i >= 0; i--) {
+        for (int i = random.nextInt(2); i >= 0; i--) {
             BlockFace next = faces[random.nextInt(4)];
             while (usedDirections.contains(next)) {
                 next = faces[random.nextInt(4)];
@@ -265,12 +255,8 @@ public class RoomPopulator extends BlockPopulator {
             usedDirections.add(next);
 
             buildRequest = new BuildRequest(source.getX() + next.getModX(), source.getZ() + next.getModZ(), room, next);
-
             if (!requestList.contains(buildRequest)) {
-                if (random.nextInt(100) < ROOM_CHANCE || random.nextInt(100) < ROOM_CHANCE) {
-                    request = new BuildRequest(source.getX() + next.getModX(), source.getZ() + next.getModZ(), room, next);
-                    requestList.add(request);
-                }
+                requestList.add(buildRequest);
             }
         }
 
