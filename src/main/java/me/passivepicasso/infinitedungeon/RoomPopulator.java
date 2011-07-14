@@ -1,6 +1,5 @@
 package me.passivepicasso.infinitedungeon;
 
-import joptsimple.util.KeyValuePair;
 import me.passivepicasso.util.Box;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -15,23 +14,18 @@ import java.util.*;
 
 public class RoomPopulator extends BlockPopulator {
 
-    private static final int ROOM_CHANCE = 25;
-
     public static List<BuildRequest> requestList = new ArrayList<BuildRequest>();
     public static Map<BuildRequest, Box> ROOMS = new HashMap<BuildRequest, Box>();
-
-    public static Box getHomeRoom() {
-        if (homeRoom != null) {
-
-        }
-        return homeRoom;
-    }
-
+    private static final int ADDITIONAL_HEIGHT_CHANCE = 20;
+    private static final int LIT_ROOM_CHANCE = 35;
+    private static final int CORRIDOR_ROOM_CHANCE = 40;
     public static Box homeRoom;
-
 
     @Override
     public void populate(World world, Random random, Chunk source) {
+        if (Math.abs(source.getX()) > 16 || Math.abs(source.getZ()) > 16) {
+            return;
+        }
 
         BuildRequest buildRequest = new BuildRequest(source.getX(), source.getZ());
 
@@ -66,173 +60,86 @@ public class RoomPopulator extends BlockPopulator {
             //prepare hall direction awareness.
             BlockFace nextDir = null;
 
+            while (Material.AIR.equals(current.getFace(BlockFace.DOWN).getType())) {
+                current = current.getFace(BlockFace.DOWN);
+            }
+            HallTunneler tunneler = new HallTunneler(nextDir, requester, current);
             switch (direction) {
                 case NORTH:
                 case SOUTH:
                     //if we are traveling to the north/south, run north/south first hall gen.
-                    nextDir = createVerticalHall(nextDir, requester, current);
+                    createVerticalHall(tunneler);
                     break;
                 case EAST:
                 case WEST:
                     //if we are traveling to the East/West, run East/West first hall gen.
-                    nextDir = createHorizontalHall(nextDir, requester, current);
+                    createHorizontalHall(tunneler);
                     break;
             }
-
-            int by = current.getY();
-            if (nextDir != null) {
-                if (by < requester.getMinY()) {
-                    byte dirByte = 0x2;
-                    switch (nextDir) {
-                        case WEST:
-                            dirByte = 0x2;
-                            break;
-                        case EAST:
-                            dirByte = 0x3;
-                            break;
-                        case SOUTH:
-                            dirByte = 0x4;
-                            break;
-                        case NORTH:
-                            dirByte = 0x5;
-                            break;
-                    }
-                    current.setTypeIdAndData(Material.LADDER.getId(), dirByte, false);
-                    while (by <= requester.getMinY()) {
-                        current = current.getFace(BlockFace.UP);
-                        current.setTypeIdAndData(Material.LADDER.getId(), dirByte, false);
-                        by = current.getY();
-                    }
-                }
-            }
         }
     }
 
-    private static BlockFace createVerticalHall(BlockFace nextDir, Box requester, Block current) {
-        int by = current.getY();
-        int bx = current.getX();
-        if (bx < requester.getMinX() && bx < requester.getMaxX()) {
-            nextDir = BlockFace.SOUTH;
-        } else if (bx > requester.getMaxX() && bx > requester.getMinX()) {
-            nextDir = BlockFace.NORTH;
-        }
-        if (nextDir != null) {
-
-            while (!(bx >= requester.getMinX() && bx <= requester.getMaxX())) {
-                current = current.getFace(nextDir);
-                bx = current.getX();
-                current.setTypeId(0);
-                current.getFace(BlockFace.UP).setTypeId(0);
-                if (by < requester.getMinY()) {
-                    current = current.getFace(BlockFace.UP);
-                    current.getFace(BlockFace.UP).setTypeId(0);
-                    by = current.getY();
-                } else if (by > requester.getMinY()) {
-                    current = current.getFace(BlockFace.DOWN);
-                    current.setTypeId(0);
-                    by = current.getY();
-                }
+    private static void createVerticalHall(HallTunneler hallTunneler) {
+        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), hallTunneler.getCurrent().getZ(), BlockFace.EAST, BlockFace.WEST));
+        hallTunneler.tunnel(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), new XorZRetriever() {
+            @Override
+            public int get(Block block) {
+                return block.getZ();
             }
-            nextDir = null;
-        }
-        int bz = current.getZ();
-        if (bz < requester.getMinZ() && bz < requester.getMaxZ()) {
-            nextDir = BlockFace.WEST;
-        } else if (bz > requester.getMaxZ() && bz > requester.getMinZ()) {
-            nextDir = BlockFace.EAST;
-        }
-
-        if (nextDir != null) {
-            while (!(bz >= requester.getMinZ() && bz <= requester.getMaxZ())) {
-                current = current.getFace(nextDir);
-                bz = current.getZ();
-                current.setTypeId(0);
-                current.getFace(BlockFace.UP).setTypeId(0);
-                if (by < requester.getMinY()) {
-                    current = current.getFace(BlockFace.UP);
-                    current.getFace(BlockFace.UP).setTypeId(0);
-                    by = current.getY();
-                } else if (by > requester.getMinY()) {
-                    current = current.getFace(BlockFace.DOWN);
-                    current.setTypeId(0);
-                    by = current.getY();
-                }
+        });
+        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinX(), hallTunneler.getRequester().getMaxX(), hallTunneler.getCurrent().getX(), BlockFace.SOUTH, BlockFace.NORTH));
+        hallTunneler.tunnel(hallTunneler.getRequester().getMinX(), hallTunneler.getRequester().getMaxX(), new XorZRetriever() {
+            @Override
+            public int get(Block block) {
+                return block.getX();
             }
-        }
-        return nextDir;
+        });
     }
 
-    private static BlockFace createHorizontalHall(BlockFace nextDir, Box requester, Block current) {
-        int bz = current.getZ();
-        int by = current.getY();
-        //Orrient against negative/positive location along the z axis
-        if (bz < requester.getMinZ() && bz < requester.getMaxZ()) {
-            nextDir = BlockFace.WEST;
-        } else if (bz > requester.getMaxZ() && bz > requester.getMinZ()) {
-            nextDir = BlockFace.EAST;
-        }
 
-
-        if (nextDir != null) {
-            //while current is not within the z bounds of the room...
-
-            while (!(bz >= requester.getMinZ() && bz <= requester.getMaxZ())) {
-                current = current.getFace(nextDir);
-                bz = current.getZ();
-                current.setTypeId(0);
-                current.getFace(BlockFace.UP).setTypeId(0);
-                if (by < requester.getMinY()) {
-                    current = current.getFace(BlockFace.UP);
-                    current.getFace(BlockFace.UP).setTypeId(0);
-                    by = current.getY();
-                } else if (by > requester.getMinY()) {
-                    current = current.getFace(BlockFace.DOWN);
-                    current.setTypeId(0);
-                    by = current.getY();
-                }
+    private static void createHorizontalHall(HallTunneler hallTunneler) {
+        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinX(), hallTunneler.getRequester().getMaxX(), hallTunneler.getCurrent().getX(), BlockFace.SOUTH, BlockFace.NORTH));
+        hallTunneler.tunnel(hallTunneler.getRequester().getMinX(), hallTunneler.getRequester().getMaxX(), new XorZRetriever() {
+            @Override
+            public int get(Block block) {
+                return block.getX();
             }
-            nextDir = null;
-        }
-
-        int bx = current.getX();
-        if (bx < requester.getMinX()) {
-            nextDir = BlockFace.SOUTH;
-        } else if (bx > requester.getMaxX()) {
-            nextDir = BlockFace.NORTH;
-        }
-
-        if (nextDir != null) {
-            current.setTypeId(0);
-            current.getFace(BlockFace.UP).setTypeId(0);
-            while (!(bx >= requester.getMinX() && bx <= requester.getMaxX())) {
-                current = current.getFace(nextDir);
-                bx = current.getX();
-                current.setTypeId(0);
-                current.getFace(BlockFace.UP).setTypeId(0);
-                if (by < requester.getMinY()) {
-                    current = current.getFace(BlockFace.UP);
-                    current.getFace(BlockFace.UP).setTypeId(0);
-                    by = current.getY();
-                } else if (by > requester.getMinY()) {
-                    current = current.getFace(BlockFace.DOWN);
-                    current.setTypeId(0);
-                    by = current.getY();
-                }
+        });
+        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), hallTunneler.getCurrent().getZ(), BlockFace.EAST, BlockFace.WEST));
+        hallTunneler.tunnel(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), new XorZRetriever() {
+            @Override
+            public int get(Block block) {
+                return block.getZ();
             }
+        });
+    }
+
+    private static BlockFace getAxialDirection(int min, int max, int currentValue, BlockFace lesserDirection, BlockFace greaterDirection) {
+        if (currentValue < min) {
+            return lesserDirection;
+        } else if (currentValue > max) {
+            return greaterDirection;
         }
-        return nextDir;
+        return null;
     }
 
     public static Box createRoom(World world, Random random, Chunk source) {
-        int x, z, level, y_base, y_boost = 0, xOffset, zOffset, halfWidth = random.nextInt(10), halfLength = random.nextInt(10), val;
-        xOffset = halfWidth == 0 ? 0 : (16 % (halfWidth * 2)) / 2;//random.nextInt(11 - (halfWidth * source.getX() >= 0 ? 1 : -1));
-        zOffset = halfLength == 0 ? 0 : (16 % (halfLength * 2)) / 2;//random.nextInt(11 - (halfLength * source.getZ() >= 0 ? 1 : -1));
+        int x, z, level, y_base, y_boost = 0, xOffset, zOffset, halfWidth = random.nextInt(9),
+                halfLength = random.nextInt(9);
+        xOffset = halfWidth == 0 ? 0 : (16 % (halfWidth * 2)) / 2;
+        zOffset = halfLength == 0 ? 0 : (16 % (halfLength * 2)) / 2;
         x = (source.getX() * 16);
         z = (source.getZ() * 16);
         level = 1;
-        y_base = 127 - (4 * level);
-        while (random.nextInt(100) < 10) {
+        y_base = 126 - (4 * level);
+        while (random.nextInt(100) < ADDITIONAL_HEIGHT_CHANCE) {
             y_boost += 4;
+        }
+        boolean litRoom = random.nextInt(100) < LIT_ROOM_CHANCE;
+        if (homeRoom != null && random.nextInt(100) < CORRIDOR_ROOM_CHANCE) {
+            halfWidth = 0;
+            halfLength = 0;
+            y_boost = -2;
         }
 
         BuildRequest buildRequest;
@@ -240,30 +147,37 @@ public class RoomPopulator extends BlockPopulator {
         Box room = new Box(x + (x < 0 ? xOffset : -xOffset), y_base - y_boost, z + (z < 0 ? zOffset : -zOffset), 4 + y_boost, halfLength * 2, halfWidth * 2);
 
         //Create atleast 1 request in the target direction.
-        BlockFace direction = BlockFace.values()[random.nextInt(4)];
+        BlockFace[] faces = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
+        BlockFace direction = faces[random.nextInt(4)];
         buildRequest = new BuildRequest(source.getX() + direction.getModX(), source.getZ() + direction.getModZ(), room, direction.getOppositeFace());
         requestList.add(buildRequest);
 
-        BlockFace[] faces = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
         ArrayList<BlockFace> usedDirections = new ArrayList<BlockFace>();
         usedDirections.add(direction);
-        for (int i = random.nextInt(2); i >= 0; i--) {
+        for (int i = random.nextInt(3); i >= 0; i--) {
             BlockFace next = faces[random.nextInt(4)];
+            if (usedDirections.size() == 4) {
+                break;
+            }
             while (usedDirections.contains(next)) {
                 next = faces[random.nextInt(4)];
             }
             usedDirections.add(next);
 
             buildRequest = new BuildRequest(source.getX() + next.getModX(), source.getZ() + next.getModZ(), room, next);
-            if (!requestList.contains(buildRequest)) {
-                requestList.add(buildRequest);
-            }
+            requestList.add(buildRequest);
         }
 
         for (int bx = room.getMinX(); bx <= (room.getMaxX()); bx++) {
             for (int bz = room.getMinZ(); bz <= room.getMaxZ(); bz++) {
                 for (int y = room.getMinY(); y < room.getMaxY(); y++) {
-                    world.getBlockAt(bx, y, bz).setTypeId(0);
+                    int typeId = 0;
+                    if (litRoom) {
+                        if (y % 4 == 2 && (((bx == room.getMinX() || bx == room.getMaxX()) && bz % 4 == 0) || ((bz == room.getMinZ() || bz == room.getMaxZ()) && bx % 4 == 0))) {
+                            typeId = 50;
+                        }
+                    }
+                    world.getBlockAt(bx, y, bz).setTypeId(typeId);
                 }
             }
         }

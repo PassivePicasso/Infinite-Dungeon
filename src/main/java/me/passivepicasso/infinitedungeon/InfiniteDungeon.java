@@ -49,8 +49,7 @@ public class InfiniteDungeon extends JavaPlugin {
         for (int cx = 0; cx < 16; cx++) {
             for (int cz = 0; cz < 16; cz++) {
                 for (int y = 0; y < 128; y++) {
-                    //TODO modify second check to 127 to create the ceiling
-                    if (y == 0 /*|| y == 0*/) {
+                    if (y == 0 || y == 127) {
                         IDChunkGenerator.ChunkGenArray[(cx * 16 + cz) * 128 + y] = (byte) Material.BEDROCK.getId();
                     } else {
                         IDChunkGenerator.ChunkGenArray[(cx * 16 + cz) * 128 + y] = (byte) Material.STONE.getId();
