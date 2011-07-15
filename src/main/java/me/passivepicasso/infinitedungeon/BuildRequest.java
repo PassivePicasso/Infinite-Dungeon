@@ -1,14 +1,14 @@
 package me.passivepicasso.infinitedungeon;
 
+import me.passivepicasso.util.BoxRoom;
 import org.bukkit.block.BlockFace;
-import me.passivepicasso.util.Box;
 
 public class BuildRequest {
     int targetX, targetZ;
-    Box requester;
+    BoxRoom requester;
     BlockFace direction;
 
-    public BuildRequest(int targetX, int targetZ, Box requester, BlockFace direction) {
+    public BuildRequest(int targetX, int targetZ, BoxRoom requester, BlockFace direction) {
         this.targetX = targetX;
         this.targetZ = targetZ;
         this.direction = direction;
@@ -29,7 +29,7 @@ public class BuildRequest {
     }
 
 
-    public Box getRequester() {
+    public BoxRoom getRequester() {
         return requester;
     }
 

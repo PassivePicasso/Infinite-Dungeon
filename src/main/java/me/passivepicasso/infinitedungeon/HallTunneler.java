@@ -1,6 +1,6 @@
 package me.passivepicasso.infinitedungeon;
 
-import me.passivepicasso.util.Box;
+import me.passivepicasso.util.BoxRoom;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -12,18 +12,18 @@ public class HallTunneler {
     }
 
     private BlockFace nextDir;
-    private Box requester;
+    private BoxRoom requester;
     private Block current;
     private int by;
 
-    public HallTunneler(BlockFace nextDir, Box requester, Block current) {
+    public HallTunneler(BlockFace nextDir, BoxRoom requester, Block current) {
         this.nextDir = nextDir;
         this.requester = requester;
         this.current = current;
         by = current.getY();
     }
 
-    public Box getRequester(){
+    public BoxRoom getRequester() {
         return requester;
     }
 
@@ -59,13 +59,12 @@ public class HallTunneler {
     }
 
     public HallTunneler tunnel(int min, int max, XorZRetriever currentAxisValue) {
-        int cVal;
+        int cVal = currentAxisValue.get(current);
         if (nextDir != null) {
             Byte dir = getByteDirection(nextDir);
             Byte opDir = getByteDirection(nextDir.getOppositeFace());
-            do {
+            while (!(cVal >= min && cVal <= max)) {
                 current = current.getFace(nextDir);
-                cVal = currentAxisValue.get(current);
                 current.setTypeId(0);
                 current.getFace(BlockFace.UP).setTypeId(0);
                 if (by < requester.getMinY()) {
@@ -89,8 +88,9 @@ public class HallTunneler {
                         break;
                     }
                 }
+                cVal = currentAxisValue.get(current);
                 by = current.getY();
-            } while (!(cVal >= min && cVal <= max));
+            }
             nextDir = null;
         }
         return this;

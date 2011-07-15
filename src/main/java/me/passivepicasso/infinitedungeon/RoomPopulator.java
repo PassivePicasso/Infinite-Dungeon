@@ -1,25 +1,26 @@
 package me.passivepicasso.infinitedungeon;
 
-import me.passivepicasso.util.Box;
+import me.passivepicasso.util.BoxRoom;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.generator.BlockPopulator;
 
 import java.util.*;
+import java.util.Map.Entry;
 
 
 public class RoomPopulator extends BlockPopulator {
 
     public static List<BuildRequest> requestList = new ArrayList<BuildRequest>();
-    public static Map<BuildRequest, Box> ROOMS = new HashMap<BuildRequest, Box>();
+    public static Map<BuildRequest, BoxRoom> ROOMS = new HashMap<BuildRequest, BoxRoom>();
     private static final int ADDITIONAL_HEIGHT_CHANCE = 20;
-    private static final int LIT_ROOM_CHANCE = 35;
+    private static final int LIT_ROOM_CHANCE = 15;
     private static final int CORRIDOR_ROOM_CHANCE = 40;
-    public static Box homeRoom;
+    public static BoxRoom homeRoom;
 
     @Override
     public void populate(World world, Random random, Chunk source) {
@@ -31,7 +32,7 @@ public class RoomPopulator extends BlockPopulator {
 
         //Create Starting room for which all other rooms will be connected to.  Creating the starting room creates at minimum a single request for an additional room.
         if (homeRoom == null) {
-            Box room = createRoom(world, random, source);
+            BoxRoom room = createRoom(world, random, source);
             ROOMS.put(new BuildRequest(source.getX(), source.getZ()), room);
             homeRoom = room;
             IDChunkGenerator.fixedSpawnLocation = new Location(world, homeRoom.getMinX(), homeRoom.getMinY(), homeRoom.getMinZ());
@@ -40,7 +41,7 @@ public class RoomPopulator extends BlockPopulator {
         if (requestList.contains(buildRequest)) {
 
             //create room with at minimum a single request to a neighboring chunk.
-            Box room = createRoom(world, random, source);
+            BoxRoom room = createRoom(world, random, source);
 
             //remove this chunks request from the request list.
             buildRequest = requestList.remove(requestList.indexOf(buildRequest));
@@ -48,7 +49,7 @@ public class RoomPopulator extends BlockPopulator {
             //Store a reference to the request and generated room, for backwards awareness;
             ROOMS.put(buildRequest, room);
 
-            Box requester = buildRequest.getRequester();
+            BoxRoom requester = buildRequest.getRequester();
             BlockFace direction = buildRequest.getDirection(); // direction leading back towards the chunk that made the request
 
             //Get the block from corner of the generated room, select the next block towards direction until we hit a solid block (non air)
@@ -80,7 +81,7 @@ public class RoomPopulator extends BlockPopulator {
     }
 
     private static void createVerticalHall(HallTunneler hallTunneler) {
-        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), hallTunneler.getCurrent().getZ(), BlockFace.EAST, BlockFace.WEST));
+        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), hallTunneler.getCurrent().getZ(), BlockFace.WEST, BlockFace.EAST));
         hallTunneler.tunnel(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), new XorZRetriever() {
             @Override
             public int get(Block block) {
@@ -105,7 +106,7 @@ public class RoomPopulator extends BlockPopulator {
                 return block.getX();
             }
         });
-        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), hallTunneler.getCurrent().getZ(), BlockFace.EAST, BlockFace.WEST));
+        hallTunneler.setNextDir(getAxialDirection(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), hallTunneler.getCurrent().getZ(), BlockFace.WEST, BlockFace.EAST));
         hallTunneler.tunnel(hallTunneler.getRequester().getMinZ(), hallTunneler.getRequester().getMaxZ(), new XorZRetriever() {
             @Override
             public int get(Block block) {
@@ -123,7 +124,7 @@ public class RoomPopulator extends BlockPopulator {
         return null;
     }
 
-    public static Box createRoom(World world, Random random, Chunk source) {
+    public static BoxRoom createRoom(World world, Random random, Chunk source) {
         int x, z, level, y_base, y_boost = 0, xOffset, zOffset, halfWidth = random.nextInt(9),
                 halfLength = random.nextInt(9);
         xOffset = halfWidth == 0 ? 0 : (16 % (halfWidth * 2)) / 2;
@@ -135,7 +136,6 @@ public class RoomPopulator extends BlockPopulator {
         while (random.nextInt(100) < ADDITIONAL_HEIGHT_CHANCE) {
             y_boost += 4;
         }
-        boolean litRoom = random.nextInt(100) < LIT_ROOM_CHANCE;
         if (homeRoom != null && random.nextInt(100) < CORRIDOR_ROOM_CHANCE) {
             halfWidth = 0;
             halfLength = 0;
@@ -144,7 +144,8 @@ public class RoomPopulator extends BlockPopulator {
 
         BuildRequest buildRequest;
 
-        Box room = new Box(x + (x < 0 ? xOffset : -xOffset), y_base - y_boost, z + (z < 0 ? zOffset : -zOffset), 4 + y_boost, halfLength * 2, halfWidth * 2);
+        BoxRoom room = new BoxRoom(x + (x < 0 ? xOffset : -xOffset), y_base - y_boost, z + (z < 0 ? zOffset : -zOffset), 4 + y_boost, halfLength * 2, halfWidth * 2);
+        room.setLit(random.nextInt(100) < LIT_ROOM_CHANCE);
 
         //Create atleast 1 request in the target direction.
         BlockFace[] faces = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
@@ -168,6 +169,20 @@ public class RoomPopulator extends BlockPopulator {
             requestList.add(buildRequest);
         }
 
+        //find all rooms that intersect with this room and connect them
+        outer:
+        for (Entry<BuildRequest, BoxRoom> other : new ArrayList<Entry<BuildRequest, BoxRoom>>(RoomPopulator.ROOMS.entrySet())) {
+            if (!room.equals(other) && room.intersects(other.getValue())) {
+                RoomPopulator.ROOMS.remove(other.getKey());
+            }
+        }
+        for (BoxRoom part : room.getRoomParts()) {
+            fillRoom(world, room.isLit(), part);
+        }
+        return room;
+    }
+
+    private static void fillRoom(World world, boolean litRoom, BoxRoom room) {
         for (int bx = room.getMinX(); bx <= (room.getMaxX()); bx++) {
             for (int bz = room.getMinZ(); bz <= room.getMaxZ(); bz++) {
                 for (int y = room.getMinY(); y < room.getMaxY(); y++) {
@@ -181,6 +196,7 @@ public class RoomPopulator extends BlockPopulator {
                 }
             }
         }
-        return room;
     }
+
+
 }
